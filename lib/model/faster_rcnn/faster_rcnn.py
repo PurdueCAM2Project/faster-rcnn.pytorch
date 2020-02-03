@@ -40,9 +40,17 @@ class _fasterRCNN(nn.Module):
         self.RCNN_roi_pool = ROIPool((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         self.RCNN_roi_align = ROIAlign((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
 
+    def pre_class_acc(self, nums, pred, rois_label):
+        nb_classes = nums
+        confusion_matrix = torch.zeros(nb_classes, nb_classes)
+        with torch.no_grad():
+            for t, p in zip(rois_label.view(-1), pred.view(-1)):
+                    confusion_matrix[t.long(), p.long()] += 1
+        print(confusion_matrix.diag()/confusion_matrix.sum(1))
+
+    
     def forward(self, im_data, im_info, gt_boxes, num_boxes):
         batch_size = im_data.size(0)
-
         im_info = im_info.data
         gt_boxes = gt_boxes.data
         num_boxes = num_boxes.data
@@ -92,7 +100,13 @@ class _fasterRCNN(nn.Module):
         # compute object classification probability
         cls_score = self.RCNN_cls_score(pooled_feat)
         cls_prob = F.softmax(cls_score, 1)
+    
+        pred = cls_score.max(1, keepdim=True)[1]
+        #print(len([i for i in pred if i == 0]), len([i for i in rois_label if i == 0]), len(rois_label))
 
+        # count1 = pred.eq(rois_label.view_as(pred)).sum().item()
+        #print("class_acc: ", count1/pred.shape[0])
+        #self.pre_class_acc(21, rois_label, pred)
         RCNN_loss_cls = 0
         RCNN_loss_bbox = 0
 
@@ -106,8 +120,7 @@ class _fasterRCNN(nn.Module):
 
         cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
         bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
-
-        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label, pred
 
     def _init_weights(self):
         def normal_init(m, mean, stddev, truncated=False):

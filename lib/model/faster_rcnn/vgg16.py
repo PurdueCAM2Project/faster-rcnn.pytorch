@@ -15,6 +15,9 @@ import math
 import torchvision.models as models
 from model.faster_rcnn.faster_rcnn import _fasterRCNN
 import pdb
+from .downsampler import Downsample
+
+
 
 class vgg16(_fasterRCNN):
   def __init__(self, classes, pretrained=False, class_agnostic=False):
@@ -36,7 +39,16 @@ class vgg16(_fasterRCNN):
 
     # not using the last maxpool layer
     self.RCNN_base = nn.Sequential(*list(vgg.features._modules.values())[:-1])
-
+    out_channel = 1
+    i = 0
+    while i < len(self.RCNN_base):
+      if isinstance(self.RCNN_base[i], torch.nn.modules.conv.Conv2d):
+        out_channel = self.RCNN_base[i].out_channels
+      if isinstance(self.RCNN_base[i], torch.nn.modules.pooling.MaxPool2d):
+        self.RCNN_base[i].stride = 1
+        self.RCNN_base = nn.Sequential(*list(self.RCNN_base[:i+1]), Downsample(channels=out_channel, filt_size=3, stride = 2), *list(self.RCNN_base[i+1:]))
+      i+=1
+    
     # Fix the layers before conv3:
     for layer in range(10):
       for p in self.RCNN_base[layer].parameters(): p.requires_grad = False

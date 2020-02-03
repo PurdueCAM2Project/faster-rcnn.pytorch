@@ -1,8 +1,3 @@
-# --------------------------------------------------------
-# Pytorch multi-GPU Faster R-CNN
-# Licensed under The MIT License [see LICENSE for details]
-# Written by Jiasen Lu, Jianwei Yang, based on code from Ross Girshick
-# --------------------------------------------------------
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -107,10 +102,10 @@ def parse_args():
                       default=1, type=int)
   parser.add_argument('--checkepoch', dest='checkepoch',
                       help='checkepoch to load model',
-                      default=1, type=int)
+                      default=14, type=int)
   parser.add_argument('--checkpoint', dest='checkpoint',
                       help='checkpoint to load model',
-                      default=0, type=int)
+                      default=1001, type=int)
 # log and diaplay
   parser.add_argument('--use_tfb', dest='use_tfboard',
                       help='whether use tensorboard',
@@ -193,7 +188,7 @@ if __name__ == '__main__':
   # train set
   # -- Note: Use validation set and disable the flipped to enable faster loading.
   cfg.TRAIN.USE_FLIPPED = True
-  cfg.USE_GPU_NMS = args.cuda
+  cfg.USE_GPU_NMS = False
   imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdb_name)
   train_size = len(roidb)
 
@@ -294,7 +289,10 @@ if __name__ == '__main__':
   if args.use_tfboard:
     from tensorboardX import SummaryWriter
     logger = SummaryWriter("logs")
+    #test
 
+  fgs = []
+  bgs = []
   for epoch in range(args.start_epoch, args.max_epochs + 1):
     # setting to train mode
     fasterRCNN.train()
@@ -306,6 +304,8 @@ if __name__ == '__main__':
         lr *= args.lr_decay_gamma
 
     data_iter = iter(dataloader)
+    nb_classes = 21
+    confusion_matrix = torch.zeros(nb_classes, nb_classes)
     for step in range(iters_per_epoch):
       data = next(data_iter)
       with torch.no_grad():
@@ -318,8 +318,11 @@ if __name__ == '__main__':
       rois, cls_prob, bbox_pred, \
       rpn_loss_cls, rpn_loss_box, \
       RCNN_loss_cls, RCNN_loss_bbox, \
-      rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+      rois_label, pred = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
+      for t, p in zip(rois_label.view(-1), pred.view(-1)):
+            confusion_matrix[t.long(), p.long()] += 1
+      
       loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
            + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
       loss_temp += loss.item()
@@ -330,7 +333,8 @@ if __name__ == '__main__':
       if args.net == "vgg16":
           clip_gradient(fasterRCNN, 10.)
       optimizer.step()
-
+      fgs.append(torch.sum(rois_label.data.ne(0)))
+      bgs.append(rois_label.data.numel() - torch.sum(rois_label.data.ne(0)))
       if step % args.disp_interval == 0:
         end = time.time()
         if step > 0:

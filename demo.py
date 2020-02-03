@@ -65,7 +65,7 @@ def parse_args():
                       default="/srv/share/jyang375/models")
   parser.add_argument('--image_dir', dest='image_dir',
                       help='directory to load images for demo',
-                      default="images")
+                      default="images/img1")
   parser.add_argument('--cuda', dest='cuda',
                       help='whether use CUDA',
                       action='store_true')
@@ -159,11 +159,12 @@ if __name__ == '__main__':
   # train set
   # -- Note: Use validation set and disable the flipped to enable faster loading.
 
-  input_dir = args.load_dir + "/" + args.net + "/" + args.dataset
-  if not os.path.exists(input_dir):
-    raise Exception('There is no input directory for loading network from ' + input_dir)
-  load_name = os.path.join(input_dir,
-    'faster_rcnn_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
+  # input_dir = args.load_dir + "/" + args.net + "/" + args.dataset
+  # if not os.path.exists(input_dir):
+  #   raise Exception('There is no input directory for loading network from ' + input_dir)
+  # load_name = os.path.join(input_dir,
+  #   'faster_rcnn_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
+  load_name = os.path.join('/local/a/goel39/ECCV/VGG/faster-rcnn.pytorch/models/vgg16/pascal_voc', 'faster_rcnn_1_20_2504.pth')
 
   pascal_classes = np.asarray(['__background__',
                        'aeroplane', 'bicycle', 'bird', 'boat',
@@ -290,7 +291,7 @@ if __name__ == '__main__':
       rois, cls_prob, bbox_pred, \
       rpn_loss_cls, rpn_loss_box, \
       RCNN_loss_cls, RCNN_loss_bbox, \
-      rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+      rois_label, _ = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
       scores = cls_prob.data
       boxes = rois.data[:, :, 1:5]
